@@ -43,6 +43,13 @@ python3 -m venv venv && venv/bin/pip install numpy pillow evdev
 venv/bin/python capture.py --password <rcon password> --mc-dir ~/.minecraft --camera <your name> --samples 1500
 ```
 
+Each sample picks a camera mode (`--modes`, default spectator, survival and
+creative). Survival and creative shots show the HUD and the first-person hand
+with a random held item; spectator shots hide the HUD. The camera player
+stands on an invisible barrier block while frozen, since `/tick freeze`
+doesn't stop players falling. Very dark frames are skipped. The mode of each
+image goes in `modes.txt`.
+
 Click into the game window within 5 seconds, then leave the keyboard and
 mouse alone (it presses F1 and F2 through a virtual keyboard, which needs
 access to `/dev/uinput`). 1500 samples take roughly an hour. It roams far

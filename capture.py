@@ -2,9 +2,10 @@
 """Captures an auto-labeled Minecraft player dataset. See README.md.
 
 Drives a local Fabric + Carpet server over RCON: spawns fake players, puts
-the camera (your spectator player) somewhere looking at them, freezes the
-world, and takes two F2 screenshots, with and without the players. label.py
-turns each pair into YOLO boxes.
+the camera (your player, in spectator, survival or creative) somewhere
+looking at them, freezes the world, and takes two F2 screenshots, with and
+without the players. label.py turns each pair into YOLO boxes. Survival and
+creative shots keep the HUD and the first-person hand in frame.
 """
 
 import argparse
@@ -26,7 +27,10 @@ ARMOR = ["leather", "chainmail", "iron", "golden", "diamond", "netherite"]
 SLOTS = [("head", "helmet"), ("chest", "chestplate"), ("legs", "leggings"), ("feet", "boots")]
 HELD = ["air", "air", "diamond_sword", "iron_sword", "bow", "crossbow", "shield", "iron_pickaxe",
         "cobblestone", "oak_planks", "torch", "golden_apple", "ender_pearl", "trident", "fishing_rod"]
-TIMES = [1000, 6000, 6000, 10000, 12500, 13500, 18000, 23000]
+# No deep night: players vanish in the dark and the label diff gets unreliable.
+TIMES = [1000, 3000, 6000, 6000, 9000, 11500, 12500]
+MODES = ["spectator", "survival", "creative"]
+MIN_BRIGHTNESS = 20  # mean pixel value; darker frames are skipped
 
 
 class Rcon:
@@ -137,7 +141,8 @@ def main():
     ap.add_argument("--rcon", default="127.0.0.1:25575")
     ap.add_argument("--password", required=True)
     ap.add_argument("--mc-dir", type=Path, required=True, help="the game folder (has options.txt and screenshots/)")
-    ap.add_argument("--camera", required=True, help="your player name; it becomes a spectator camera")
+    ap.add_argument("--camera", required=True, help="your player name; it becomes the camera")
+    ap.add_argument("--modes", default=",".join(MODES), help="camera game modes to mix, comma separated")
     ap.add_argument("--out", type=Path, default=Path("dataset"))
     ap.add_argument("--samples", type=int, default=1500)
     ap.add_argument("--bots", type=int, default=6, help="most fake players in one frame")
@@ -145,10 +150,13 @@ def main():
     ap.add_argument("--range", type=int, default=20000, help="how far from 0,0 to roam, in blocks")
     ap.add_argument("--width", type=int, default=640, help="saved image width")
     ap.add_argument("--seed", type=int)
-    ap.add_argument("--hud-hidden", action="store_true", help="the HUD is already hidden; don't press F1")
+    ap.add_argument("--hud-hidden", action="store_true", help="the HUD is hidden right now; the run tracks F1 from there")
     ap.add_argument("--debug", action="store_true", help="also save the empty frame and projected boxes")
     args = ap.parse_args()
     rng = random.Random(args.seed)
+    modes = [m.strip() for m in args.modes.split(",") if m.strip()]
+    if not modes or any(m not in MODES for m in modes):
+        sys.exit(f"--modes must be some of {', '.join(MODES)}")
 
     host, port = args.rcon.rsplit(":", 1)
     rcon = Rcon(host, int(port), args.password)
@@ -180,14 +188,26 @@ def main():
     print(f"FOV {fov:.0f}. Click into the game window now; starting in 5 s.")
     time.sleep(5)
     keys = Keys()
-    if not args.hud_hidden:
-        keys.tap("KEY_F1")  # hide the HUD
+    hud_hidden = args.hud_hidden
+
+    def want_hud_hidden(hidden):
+        nonlocal hud_hidden
+        if hidden != hud_hidden:
+            keys.tap("KEY_F1")
+            hud_hidden = hidden
+            time.sleep(0.3)
 
     spawned = []
     made, boxes = 0, 0
     base = None
+    barrier = None
     while made < args.samples:
         rcon("tick unfreeze")
+        # Park the camera as a spectator so a survival body never falls or drowns between samples.
+        rcon(f"gamemode spectator {cam}")
+        if barrier:
+            rcon(f"setblock {barrier[0]} {barrier[1]} {barrier[2]} minecraft:air")
+            barrier = None
         # A new place, time and weather every 15 samples.
         if base is None or made % 15 == 0:
             base = (rng.randint(-args.range, args.range), rng.randint(-args.range, args.range))
@@ -249,14 +269,37 @@ def main():
         # A player at the lens fills the view with one blurry body.
         if eye is None or any(math.dist(eye, (x, y + 1, z)) < 2 for x, y, z in (p["pos"] for p in players)):
             continue
+        mode = rng.choice(modes)
+        if mode != "spectator":
+            # A real body: stand it on a whole-block height, over an invisible barrier if the
+            # ground is far below, since /tick freeze doesn't stop players falling.
+            feet_y = math.floor(eye[1] - label.EYE)
+            eye = (eye[0], feet_y + label.EYE, eye[2])
+            fx, fz = math.floor(eye[0]), math.floor(eye[2])
+            if "passed" not in rcon(f"execute if block {fx} {feet_y} {fz} minecraft:air"):
+                continue  # feet inside terrain
+            if "passed" in rcon(f"execute if block {fx} {feet_y - 1} {fz} minecraft:air"):
+                barrier = (fx, feet_y - 1, fz)
+                rcon(f"setblock {fx} {feet_y - 1} {fz} minecraft:barrier")
         yaw, pitch = look_at(eye, target)
         yaw += rng.uniform(-fov / 3, fov / 3)
         pitch = max(-60, min(60, pitch + rng.uniform(-fov / 5, fov / 5)))
+        rcon(f"gamemode {mode} {cam}")
         rcon(f"tp {cam} {eye[0]:.2f} {eye[1] - label.EYE:.2f} {eye[2]:.2f} {yaw:.2f} {pitch:.2f}")
+        want_hud_hidden(mode == "spectator")
+        if mode != "spectator":
+            rcon(f"effect give {cam} minecraft:resistance 60 4 true")
+            for slot in rng.sample(range(9), rng.randint(0, 4)):
+                rcon(f"item replace entity {cam} hotbar.{slot} with {rng.choice(HELD[1:])}")
+            rcon(f"item replace entity {cam} weapon.mainhand with {rng.choice(HELD)}")
+            rcon(f"item replace entity {cam} weapon.offhand with {rng.choice(['air', 'air', 'shield', 'torch', 'bow'])}")
 
         rcon("tick freeze")
-        time.sleep(0.7)  # client catches up with the frozen positions
+        time.sleep(0.7 if mode == "spectator" else 1.2)  # client catches up; the hand finishes its equip animation
         with_players = screenshot(keys, shots)
+        if with_players[..., :3].mean() < MIN_BRIGHTNESS:
+            print("  skipped: too dark", flush=True)
+            continue
         # Players aren't frozen by /tick: skip the sample if anyone moved.
         if players:
             now = read_positions(rcon, players)
@@ -278,6 +321,8 @@ def main():
         img = Image.fromarray(with_players).convert("RGB")
         img = img.resize((args.width, round(img.height * args.width / img.width)), Image.BILINEAR)
         img.save(args.out / "images" / f"{idx:06d}.png")
+        with (args.out / "modes.txt").open("a") as f:
+            f.write(f"{idx:06d} {mode}\n")
         (args.out / "labels" / f"{idx:06d}.txt").write_text("".join(f"0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n" for cx, cy, w, h in found))
         if args.debug:
             import json
@@ -291,13 +336,15 @@ def main():
             (dbg / f"{idx:06d}.json").write_text(json.dumps(meta, indent=1))
         made += 1
         boxes += len(found)
-        print(f"{made}/{args.samples}: {len(found)} of {len(players)} players visible ({boxes} boxes so far)", flush=True)
+        print(f"{made}/{args.samples} [{mode}]: {len(found)} of {len(players)} players visible ({boxes} boxes so far)", flush=True)
 
     rcon("tick unfreeze")
+    rcon(f"gamemode spectator {cam}")
+    if barrier:
+        rcon(f"setblock {barrier[0]} {barrier[1]} {barrier[2]} minecraft:air")
     for name in spawned:
         rcon(f"player {name} kill")
-    if not args.hud_hidden:
-        keys.tap("KEY_F1")  # show the HUD again, since this run hid it
+    want_hud_hidden(args.hud_hidden)  # back to how the run found it
     print(f"done: {made} images, {boxes} boxes in {args.out}")
 
 

@@ -40,18 +40,23 @@ def main():
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--patience", type=int, default=50, help="epochs without improvement before stopping")
     ap.add_argument("--imgsz", type=int, default=320)
+    ap.add_argument("--workers", type=int, default=8, help="dataloader processes")
     ap.add_argument("--device", default="0", help="GPU index, or cpu")
     ap.add_argument("--val-share", type=float, default=0.1)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-install", action="store_true", help="don't copy the model into Blockwork's models folder")
     args = ap.parse_args()
 
+    import torch
     from ultralytics import YOLO
+
+    if args.device == "cpu":
+        torch.set_num_threads(os.cpu_count())  # ultralytics caps this at 8
 
     yaml, n_train, n_val = split(args.data, args.val_share, args.seed)
     print(f"{n_train} training and {n_val} validation images")
     model = YOLO(args.base)
-    model.train(data=str(yaml), imgsz=args.imgsz, epochs=args.epochs, batch=args.batch, device=args.device,
+    model.train(data=str(yaml), imgsz=args.imgsz, epochs=args.epochs, batch=args.batch, device=args.device, workers=args.workers,
                 project=str((args.data / "runs").resolve()), name=MODEL_ID, exist_ok=True, seed=args.seed,
                 patience=args.patience, plots=True)
     best = Path(model.trainer.best)

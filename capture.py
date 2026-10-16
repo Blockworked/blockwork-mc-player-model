@@ -37,7 +37,7 @@ class Rcon:
     """Minimal Source RCON client, as Minecraft speaks it."""
 
     def __init__(self, host, port, password):
-        self.sock = socket.create_connection((host, port), timeout=10)
+        self.sock = socket.create_connection((host, port), timeout=120)
         self.next_id = 0
         if self._send(3, password)[0] == -1:
             sys.exit("RCON refused the password")
@@ -99,7 +99,14 @@ def screenshot(keys, folder, timeout=10):
             while size != path.stat().st_size:  # wait until fully written
                 size = path.stat().st_size
                 time.sleep(0.15)
-            img = np.asarray(Image.open(path).convert("RGBA"))
+            for _ in range(20):  # size can look stable while the write is stalled
+                try:
+                    img = np.asarray(Image.open(path).convert("RGBA"))
+                    break
+                except OSError:
+                    time.sleep(0.25)
+            else:
+                sys.exit(f"screenshot never became readable: {path}")
             path.unlink()
             return img
         time.sleep(0.05)

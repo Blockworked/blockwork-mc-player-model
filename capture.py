@@ -175,10 +175,13 @@ def main():
     rules = [("advance_time", "doDaylightCycle", "false"), ("advance_weather", "doWeatherCycle", "false"),
              ("spawn_mobs", "doMobSpawning", "false"), ("immediate_respawn", "doImmediateRespawn", "true"),
              ("show_death_messages", "showDeathMessages", "false"), ("send_command_feedback", "sendCommandFeedback", "false"),
-             ("log_admin_commands", "logAdminCommands", "false")]
+             ("log_admin_commands", "logAdminCommands", "false"), ("show_advancement_messages", "announceAdvancements", "false")]
     for new, old, value in rules:
         if "Incorrect" in rcon(f"gamerule {new} {value}") and "Incorrect" in rcon(f"gamerule {old} {value}"):
             sys.exit(f"the server rejected the game rule {new}")
+    # Unlock everything once so no recipe or advancement toast pops up mid-capture.
+    rcon(f"advancement grant {cam} everything")
+    rcon(f"recipe give {cam} *")
     rcon("team add bwbots")
     for cmd in ["tick unfreeze", "team modify bwbots nametagVisibility never", "team modify bwbots collisionRule never",
                 f"gamemode spectator {cam}"]:

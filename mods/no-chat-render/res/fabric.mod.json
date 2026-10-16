@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "blockwork_nochat",
+  "version": "1.0.0",
+  "name": "Blockwork No Chat Render",
+  "description": "Disables chat rendering for dataset capture.",
+  "environment": "client",
+  "license": "MIT",
+  "depends": { "fabricloader": ">=0.16", "minecraft": "26.3" },
+  "mixins": ["blockwork_nochat.mixins.json"]
+}

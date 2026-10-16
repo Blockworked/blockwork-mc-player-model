@@ -70,8 +70,8 @@ venv/bin/python train.py --data dataset
 
 It prints validation scores, exports `dataset/mc-player-320-v1.onnx`, copies
 it into Blockwork's models folder, and prints its SHA-256. Once the file is
-hosted, put its URL, hash and size in `KNOWN` in
-`blockwork-core/src/detect/models.rs` so Blockwork can download it.
+hosted (a release asset of this repo), put its URL, hash and size in `KNOWN`
+in Blockwork's `blockwork-core/src/detect/models.rs` so it can download it.
 
 The starting weights are Ultralytics YOLOv8n, which are AGPL-3.0, so the
 fine-tuned model is too.

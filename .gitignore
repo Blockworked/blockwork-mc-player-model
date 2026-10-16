@@ -1,4 +1,9 @@
 # Weights Ultralytics downloads while training
 *.pt
 weights/
+runs/
 __pycache__/
+venv/
+# Local data lives outside git
+dataset/
+*.onnx

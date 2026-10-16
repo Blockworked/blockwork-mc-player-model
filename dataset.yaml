@@ -1,0 +1,16 @@
+# Provenance of the capture; the data itself is not in git.
+name: mc-player-320-v1
+classes: [player]
+image_size: 320
+saved_image_width: 640
+target_samples: 3000
+capture:
+  script: capture.py
+  max_bots: 6
+  roam_range: 20000
+  client_options: FOV 70, clouds off, particles minimal, shadows off, bobbing off, FOV effects 0%
+minecraft:
+  version: "26.3"
+  loader: fabric
+  carpet: fabric-carpet-26.3+v260915
+base_model: yolov8n (Ultralytics, AGPL-3.0)

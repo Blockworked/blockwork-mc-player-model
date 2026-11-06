@@ -21,7 +21,8 @@ player (`label.py`). Nothing outside the game window is captured.
    model was captured on 26.3 with Carpet `fabric-carpet-26.3+v260915`
    (`dataset.yaml` records the settings); other versions with `/tick` (1.20.3
    and newer) should work but haven't been tried.
-2. Make a server folder. Get the Fabric server launcher for that version from
+2. Use the `server/` folder (its contents besides `start.sh` are gitignored).
+   Get the Fabric server launcher for that version from
    fabricmc.net, and the matching Carpet jar from Modrinth or
    github.com/gnembon/fabric-carpet into its `mods/` folder.
 3. Start the server once, read the EULA it points to, and set `eula=true` in
@@ -33,13 +34,15 @@ player (`label.py`). Nothing outside the game window is captured.
    rcon.password=<something>
    online-mode=true
    ```
-   then start the server again and run `op <your name>` in its console.
+   Put the same password in `server/rcon-password.txt` for `capture.py
+   --password-file`. Then start the server again and run `op <your name>` in
+   its console.
 5. Build the client mod in `mods/no-chat-render` (`mods/no-chat-render/build.sh`,
    needs a JDK 21) and put `build/blockwork-nochat.jar` in the client's Fabric
    `mods/` folder. It keeps the "Saved screenshot" chat lines out of the frames.
-   The script finds the 26.3 client jar and Fabric libraries under
-   `~/.local/share/PrismLauncher` and `~/Games/blockwork-mc-server`; set
-   `MC_CLIENT_JAR` and `FABRIC_LIBS` if yours are elsewhere.
+   It looks for the 26.3 client jar under `~/.local/share/PrismLauncher` and
+   the Fabric libraries under `server/libraries`; set `MC_CLIENT_JAR` and
+   `FABRIC_LIBS` if yours are elsewhere.
 6. Join `localhost` with that client. In Options:
    FOV Normal (70), Clouds Off, Particles Minimal, Entity Shadows Off, View
    Bobbing Off, FOV Effects 0%. Keep the window size fixed while capturing.
@@ -48,7 +51,7 @@ player (`label.py`). Nothing outside the game window is captured.
 
 ```bash
 python3 -m venv venv && venv/bin/pip install numpy pillow evdev
-venv/bin/python capture.py --password <rcon password> --mc-dir ~/.minecraft --camera <your name> --samples 1500
+venv/bin/python capture.py --password-file server/rcon-password.txt --mc-dir ~/.minecraft --camera <your name> --samples 1500
 ```
 
 Each sample picks a camera mode (`--modes`, default spectator, survival and
@@ -96,5 +99,5 @@ are AGPL-3.0, so the fine-tuned model is too.
 ## Tests
 
 ```bash
-python3 -m unittest test_label test_capture
+venv/bin/python -m unittest test_label test_capture   # capture.py needs numpy and Pillow
 ```

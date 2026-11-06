@@ -8,3 +8,7 @@ venv/
 dataset/
 *.onnx
 mods/*/build/
+# The dataset server runs here; only its script and notes are kept
+server/*
+!server/start.sh
+!server/README.md

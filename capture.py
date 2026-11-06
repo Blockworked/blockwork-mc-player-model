@@ -187,7 +187,9 @@ def save_sample(args, idx, mode, with_players, without, players, camera, fov, fo
 def parse_args():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--rcon", default="127.0.0.1:25575")
-    ap.add_argument("--password", required=True)
+    pw = ap.add_mutually_exclusive_group(required=True)
+    pw.add_argument("--password", help="RCON password (shows up in shell history; prefer --password-file)")
+    pw.add_argument("--password-file", help="file holding the RCON password, like server/rcon-password.txt")
     ap.add_argument("--mc-dir", type=Path, required=True, help="the game folder (has options.txt and screenshots/)")
     ap.add_argument("--camera", required=True, help="your player name; it becomes the camera")
     ap.add_argument("--modes", default=",".join(MODES), help="camera game modes to mix, comma separated")
@@ -211,7 +213,8 @@ def main():
         sys.exit(f"--modes must be some of {', '.join(MODES)}")
 
     host, port = args.rcon.rsplit(":", 1)
-    rcon = Rcon(host, int(port), args.password)
+    password = args.password if args.password is not None else open(args.password_file).read().strip()
+    rcon = Rcon(host, int(port), password)
     fov = read_fov(args.mc_dir)
     shots = args.mc_dir / "screenshots"
     shots.mkdir(exist_ok=True)

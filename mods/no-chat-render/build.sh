@@ -3,7 +3,9 @@
 set -e
 cd "$(dirname "$0")"
 MC=${MC_CLIENT_JAR:-$HOME/.local/share/PrismLauncher/libraries/com/mojang/minecraft/26.3/minecraft-26.3-client.jar}
-LIBS=${FABRIC_LIBS:-$HOME/Games/blockwork-mc-server/libraries/net/fabricmc}
+LIBS=${FABRIC_LIBS:-../../server/libraries/net/fabricmc}
+[ -f "$MC" ] || { echo "No client jar at $MC; set MC_CLIENT_JAR" >&2; exit 1; }
+[ -d "$LIBS" ] || { echo "No Fabric libraries at $LIBS; set FABRIC_LIBS to the server's libraries/net/fabricmc" >&2; exit 1; }
 CP="$MC:$(ls $LIBS/fabric-loader/*/*.jar):$(ls $LIBS/sponge-mixin/*/*.jar)"
 rm -rf build && mkdir -p build/classes
 javac --release 21 -proc:none -cp "$CP" -d build/classes $(find src -name '*.java')

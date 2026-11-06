@@ -21,7 +21,7 @@ player (`label.py`). Nothing outside the game window is captured.
    model was captured on 26.3 with Carpet `fabric-carpet-26.3+v260915`
    (`dataset.yaml` records the settings); other versions with `/tick` (1.20.3
    and newer) should work but haven't been tried.
-2. Use the `server/` folder (its contents besides `start.sh` are gitignored).
+2. Use the `server/` folder (only `start.sh` and its README are tracked).
    Get the Fabric server launcher for that version from
    fabricmc.net, and the matching Carpet jar from Modrinth or
    github.com/gnembon/fabric-carpet into its `mods/` folder.

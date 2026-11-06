@@ -7,13 +7,20 @@ import hashlib
 import os
 import random
 import shutil
+import sys
 from pathlib import Path
 
 MODEL_ID = "mc-player-320-v1"
 
 
 def models_dir():
-    base = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
+    """Blockwork's models folder: its config root (Rust's dirs::config_dir) plus models."""
+    if sys.platform == "win32":
+        base = os.environ["APPDATA"]
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
     return Path(base) / "Blockwork" / "models"
 
 

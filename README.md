@@ -17,8 +17,10 @@ player (`label.py`). Nothing outside the game window is captured.
 
 ## 1. Set up Minecraft (you do this once)
 
-1. Install Minecraft Java Edition and pick a version Carpet supports, 1.20.3
-   or newer (for `/tick`).
+1. Install Minecraft Java Edition 26.3 with the Fabric loader. The published
+   model was captured on 26.3 with Carpet `fabric-carpet-26.3+v260915`
+   (`dataset.yaml` records the settings); other versions with `/tick` (1.20.3
+   and newer) should work but haven't been tried.
 2. Make a server folder. Get the Fabric server launcher for that version from
    fabricmc.net, and the matching Carpet jar from Modrinth or
    github.com/gnembon/fabric-carpet into its `mods/` folder.
@@ -32,7 +34,13 @@ player (`label.py`). Nothing outside the game window is captured.
    online-mode=true
    ```
    then start the server again and run `op <your name>` in its console.
-5. Join `localhost` with a vanilla client of the same version. In Options:
+5. Build the client mod in `mods/no-chat-render` (`mods/no-chat-render/build.sh`,
+   needs a JDK 21) and put `build/blockwork-nochat.jar` in the client's Fabric
+   `mods/` folder. It keeps the "Saved screenshot" chat lines out of the frames.
+   The script finds the 26.3 client jar and Fabric libraries under
+   `~/.local/share/PrismLauncher` and `~/Games/blockwork-mc-server`; set
+   `MC_CLIENT_JAR` and `FABRIC_LIBS` if yours are elsewhere.
+6. Join `localhost` with that client. In Options:
    FOV Normal (70), Clouds Off, Particles Minimal, Entity Shadows Off, View
    Bobbing Off, FOV Effects 0%. Keep the window size fixed while capturing.
 

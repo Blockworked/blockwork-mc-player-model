@@ -18,4 +18,4 @@ view-distance=8
 simulation-distance=6
 ```
 
-`start.sh` runs the server (4 GB heap). See the top-level README for the rest.
+`start.sh` runs the server (8 GB heap). See the top-level README for the rest.

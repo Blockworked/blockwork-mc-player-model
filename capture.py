@@ -9,6 +9,7 @@ creative shots keep the HUD and the first-person hand in frame.
 """
 
 import argparse
+import json
 import math
 import random
 import re
@@ -143,7 +144,47 @@ def look_at(eye, target):
     return yaw, pitch
 
 
-def main():
+def prepare_server(rcon, cam):
+    """Game rules, unlocks and the bot team a capture needs; exits if the server refuses one."""
+    # Game rule names changed in newer versions; try the new one, then the old.
+    rules = [("advance_time", "doDaylightCycle", "false"), ("advance_weather", "doWeatherCycle", "false"),
+             ("spawn_mobs", "doMobSpawning", "false"), ("immediate_respawn", "doImmediateRespawn", "true"),
+             ("show_death_messages", "showDeathMessages", "false"), ("send_command_feedback", "sendCommandFeedback", "false"),
+             ("log_admin_commands", "logAdminCommands", "false"), ("show_advancement_messages", "announceAdvancements", "false")]
+    for new, old, value in rules:
+        if "Incorrect" in rcon(f"gamerule {new} {value}") and "Incorrect" in rcon(f"gamerule {old} {value}"):
+            sys.exit(f"the server rejected the game rule {new}")
+    # Unlock everything once so no recipe or advancement toast pops up mid-capture.
+    rcon(f"advancement grant {cam} everything")
+    rcon(f"recipe give {cam} *")
+    rcon("team add bwbots")
+    for cmd in ["tick unfreeze", "team modify bwbots nametagVisibility never", "team modify bwbots collisionRule never",
+                f"gamemode spectator {cam}"]:
+        reply = rcon(cmd)
+        if "Incorrect" in reply or "Unknown" in reply:
+            sys.exit(f"the server rejected '{cmd}': {reply}")
+
+
+def save_sample(args, idx, mode, with_players, without, players, camera, fov, found):
+    """Writes one image, its labels and its mode line (and debug files with --debug)."""
+    img = Image.fromarray(with_players).convert("RGB")
+    img = img.resize((args.width, round(img.height * args.width / img.width)), Image.BILINEAR)
+    img.save(args.out / "images" / f"{idx:06d}.png")
+    with (args.out / "modes.txt").open("a") as f:
+        f.write(f"{idx:06d} {mode}\n")
+    (args.out / "labels" / f"{idx:06d}.txt").write_text("".join(f"0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n" for cx, cy, w, h in found))
+    if args.debug:
+        dbg = args.out / "debug"
+        dbg.mkdir(exist_ok=True)
+        Image.fromarray(without).convert("RGB").save(dbg / f"{idx:06d}-empty.png")
+        Image.fromarray(with_players).convert("RGB").save(dbg / f"{idx:06d}-full.png")
+        size = (with_players.shape[1], with_players.shape[0])
+        meta = {"camera": camera, "fov": fov, "found": found,
+                "players": [{**p, "box": label.player_box(p, camera, size, fov)} for p in players]}
+        (dbg / f"{idx:06d}.json").write_text(json.dumps(meta, indent=1))
+
+
+def parse_args():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--rcon", default="127.0.0.1:25575")
     ap.add_argument("--password", required=True)
@@ -159,7 +200,11 @@ def main():
     ap.add_argument("--seed", type=int)
     ap.add_argument("--hud-hidden", action="store_true", help="the HUD is hidden right now; the run tracks F1 from there")
     ap.add_argument("--debug", action="store_true", help="also save the empty frame and projected boxes")
-    args = ap.parse_args()
+    return ap.parse_args()
+
+
+def main():
+    args = parse_args()
     rng = random.Random(args.seed)
     modes = [m.strip() for m in args.modes.split(",") if m.strip()]
     if not modes or any(m not in MODES for m in modes):
@@ -178,23 +223,7 @@ def main():
     names = names or [f"bwbot{i}" for i in range(args.bots)]
 
     cam = args.camera
-    # Game rule names changed in newer versions; try the new one, then the old.
-    rules = [("advance_time", "doDaylightCycle", "false"), ("advance_weather", "doWeatherCycle", "false"),
-             ("spawn_mobs", "doMobSpawning", "false"), ("immediate_respawn", "doImmediateRespawn", "true"),
-             ("show_death_messages", "showDeathMessages", "false"), ("send_command_feedback", "sendCommandFeedback", "false"),
-             ("log_admin_commands", "logAdminCommands", "false"), ("show_advancement_messages", "announceAdvancements", "false")]
-    for new, old, value in rules:
-        if "Incorrect" in rcon(f"gamerule {new} {value}") and "Incorrect" in rcon(f"gamerule {old} {value}"):
-            sys.exit(f"the server rejected the game rule {new}")
-    # Unlock everything once so no recipe or advancement toast pops up mid-capture.
-    rcon(f"advancement grant {cam} everything")
-    rcon(f"recipe give {cam} *")
-    rcon("team add bwbots")
-    for cmd in ["tick unfreeze", "team modify bwbots nametagVisibility never", "team modify bwbots collisionRule never",
-                f"gamemode spectator {cam}"]:
-        reply = rcon(cmd)
-        if "Incorrect" in reply or "Unknown" in reply:
-            sys.exit(f"the server rejected '{cmd}': {reply}")
+    prepare_server(rcon, cam)
     print(f"FOV {fov:.0f}. Click into the game window now; starting in 5 s.")
     time.sleep(5)
     keys = Keys()
@@ -327,23 +356,7 @@ def main():
         camera = (pos[0], pos[1], pos[2], rot[0], rot[1])
 
         found = label.labels(with_players, without, players, camera, fov) if players else []
-        idx = start + made
-        img = Image.fromarray(with_players).convert("RGB")
-        img = img.resize((args.width, round(img.height * args.width / img.width)), Image.BILINEAR)
-        img.save(args.out / "images" / f"{idx:06d}.png")
-        with (args.out / "modes.txt").open("a") as f:
-            f.write(f"{idx:06d} {mode}\n")
-        (args.out / "labels" / f"{idx:06d}.txt").write_text("".join(f"0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n" for cx, cy, w, h in found))
-        if args.debug:
-            import json
-            dbg = args.out / "debug"
-            dbg.mkdir(exist_ok=True)
-            Image.fromarray(without).convert("RGB").save(dbg / f"{idx:06d}-empty.png")
-            Image.fromarray(with_players).convert("RGB").save(dbg / f"{idx:06d}-full.png")
-            size = (with_players.shape[1], with_players.shape[0])
-            meta = {"camera": camera, "fov": fov, "found": found,
-                    "players": [{**p, "box": label.player_box(p, camera, size, fov)} for p in players]}
-            (dbg / f"{idx:06d}.json").write_text(json.dumps(meta, indent=1))
+        save_sample(args, start + made, mode, with_players, without, players, camera, fov, found)
         made += 1
         boxes += len(found)
         print(f"{made}/{args.samples} [{mode}]: {len(found)} of {len(players)} players visible ({boxes} boxes so far)", flush=True)
